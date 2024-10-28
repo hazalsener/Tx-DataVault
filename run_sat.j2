@@ -1,0 +1,25 @@
+{# Extract all primary key columns into a list #}
+{%- set pk_columns = columnSets 
+  | selectattr("itemName", "equalto", 'PK') 
+  | map(attribute="columns") | first 
+  | map(attribute="name") | list -%}
+
+{%- if materialization == 'table' %}
+INSERT INTO {{ location.mapping }}.{{ name }}
+(
+  {{ columnList() }}
+)
+WITH TxLogic AS (
+  {{ logic }}
+)
+SELECT 
+  {{ columnList("TxLogic") }}
+FROM TxLogic
+LEFT JOIN {{ location.mapping }}.{{ name }} AS TxSat
+  ON
+    {%- for col in pk_columns %}
+      TxLogic."{{ col }}" = TxSat."{{ col }}"{{ " AND" if not loop.last }}
+    {%- endfor -%}
+WHERE
+  TxSat."{{ pk_columns[0] }}" IS NULL
+{%- endif %}
